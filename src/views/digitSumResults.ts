@@ -30,7 +30,7 @@ const NEURO_COLOR = "var(--pos)"; // blue
 const PUR = "#8e44ad"; // perception / symbolic accent
 const MAX_EPOCHS = 400;
 const EPOCHS_PER_FRAME = 1; // one epoch per frame so the learning is easy to follow
-const FRAME_DELAY = 45; // ms between frames — deliberately slow and visible
+const FRAME_DELAY = 160; // ms between frames — slow enough to actually read the numbers as they move
 
 let timer: ReturnType<typeof setTimeout> | null = null;
 function stopLoop(): void {
@@ -116,12 +116,13 @@ function slider(
 }
 
 /** A row of 10 clickable digit thumbnails; `setActive` moves the highlight
- * without touching training state — picking a digit is a display concern. */
+ * without touching training state — picking a digit is a display concern.
+ * `active: null` means nothing picked yet — no thumbnail highlighted. */
 function digitPicker(
   labelText: string,
-  active: number,
+  active: number | null,
   onPick: (d: number) => void
-): { row: HTMLElement; setActive: (d: number) => void } {
+): { row: HTMLElement; setActive: (d: number | null) => void } {
   const buttons = Array.from({ length: 10 }, (_, d) =>
     el(
       "button",
@@ -141,7 +142,7 @@ function digitPicker(
   );
   return {
     row,
-    setActive: (d: number) => buttons.forEach((b, i) => b.classList.toggle("active", i === d)),
+    setActive: (d: number | null) => buttons.forEach((b, i) => b.classList.toggle("active", i === d)),
   };
 }
 
@@ -197,7 +198,12 @@ function buildAndRender(root: HTMLElement, digitPixels: number[][]): void {
     hidden: Math.max(1, nn.hiddenLayers[0] ?? 4),
     activation: nn.activation,
   });
-  let sample = model.sampleHeldout();
+  // Nothing is picked and nothing trains until the user chooses both digits —
+  // `sample` only becomes meaningful once `started` flips true.
+  let pickA: number | null = null;
+  let pickB: number | null = null;
+  let sample: [number, number] = [0, 0];
+  let started = false;
 
   // ---- header ------------------------------------------------------------
   const head = el(
@@ -300,18 +306,43 @@ function buildAndRender(root: HTMLElement, digitPixels: number[][]): void {
   // ---- digit picker + live visualization ---------------------------------
   const seenBadge = el("span", { class: "badge" }, "");
 
-  function setSample(next: [number, number]): void {
-    sample = next;
-    pickerA.setActive(sample[0]);
-    pickerB.setActive(sample[1]);
-    refresh(true);
+  /** Called after either picker (or the random button) changes a digit.
+   * Before training has started this just updates readiness; once it has,
+   * it's a pure display change — never touches the model or the loop. */
+  function afterPick(): void {
+    if (started) {
+      if (pickA !== null && pickB !== null) {
+        sample = [pickA, pickB];
+        refresh(true);
+      }
+    } else {
+      updateReadyState();
+    }
   }
 
-  const pickerA = digitPicker("Digit A", sample[0], (d) => setSample([d, sample[1]]));
-  const pickerB = digitPicker("Digit B", sample[1], (d) => setSample([sample[0], d]));
+  const pickerA = digitPicker("Digit A", pickA, (d) => {
+    pickA = d;
+    pickerA.setActive(pickA);
+    afterPick();
+  });
+  const pickerB = digitPicker("Digit B", pickB, (d) => {
+    pickB = d;
+    pickerB.setActive(pickB);
+    afterPick();
+  });
   const randomBtn = el(
     "button",
-    { class: "btn", onclick: () => setSample(model.sampleHeldout()) },
+    {
+      class: "btn",
+      onclick: () => {
+        const [a, b] = model.sampleHeldout();
+        pickA = a;
+        pickB = b;
+        pickerA.setActive(pickA);
+        pickerB.setActive(pickB);
+        afterPick();
+      },
+    },
     "🎲 Random held-out"
   );
 
@@ -453,6 +484,46 @@ function buildAndRender(root: HTMLElement, digitPixels: number[][]): void {
     }
   }
 
+  /** Train button text/enabled-state before training has ever started —
+   * once `started` is true, frame()/startLoop() own this instead. */
+  function updateReadyState(): void {
+    if (started) return;
+    const ready = pickA !== null && pickB !== null;
+    trainBtn.disabled = !ready;
+    trainBtn.textContent = ready ? "Train ▶" : "Pick both digits first";
+  }
+
+  /** The true initial state, and what Reset returns to: no pick, no numbers,
+   * a friendly placeholder instead of a diagram nobody asked to see yet. */
+  function showWaitingState(): void {
+    activeViz?.destroy();
+    activeViz = null;
+    clear(vizBox);
+    mount(
+      vizBox,
+      el(
+        "div",
+        {
+          class: "muted",
+          style: { padding: "48px 0", textAlign: "center", fontSize: "13px" },
+        },
+        "Pick digit A and digit B above, then hit Train ▶ to watch this pair flow through the network."
+      )
+    );
+    vizSub.textContent = "";
+    seenBadge.textContent = "";
+    seenBadge.className = "badge";
+    verdict.innerHTML = "";
+    epochLabel.textContent = "0";
+    baseBig.textContent = "—";
+    baseTrain.set(0);
+    baseTest.set(0);
+    appBig.textContent = "—";
+    appTrain.set(0);
+    appTest.set(0);
+    appDigit.set(0);
+  }
+
   function refresh(restage: boolean): void {
     const n = model.evalBaseline();
     const s = model.evalApproach();
@@ -506,29 +577,40 @@ function buildAndRender(root: HTMLElement, digitPixels: number[][]): void {
     timer = setTimeout(frame, FRAME_DELAY);
   }
 
+  /** Noise/train-ratio sliders reset the model's weights immediately, but
+   * only restart the loop if training had actually begun — before that,
+   * there's nothing running to restart, and no pair chosen to show yet. */
   function restart(): void {
     stopLoop();
     model.reset();
-    sample = model.sampleHeldout();
-    pickerA.setActive(sample[0]);
-    pickerB.setActive(sample[1]);
-    refresh(true);
-    startLoop();
+    if (started) {
+      refresh(true);
+      startLoop();
+    }
   }
 
   trainBtn.onclick = () => {
+    if (!started) {
+      if (pickA === null || pickB === null) return; // guarded by disabled state too
+      sample = [pickA, pickB];
+      started = true;
+      refresh(true);
+      startLoop();
+      return;
+    }
     if (model.epoch >= MAX_EPOCHS) model.reset();
     startLoop();
   };
   resetBtn.onclick = () => {
     stopLoop();
     model.reset();
-    sample = model.sampleHeldout();
-    pickerA.setActive(sample[0]);
-    pickerB.setActive(sample[1]);
-    refresh(true);
-    trainBtn.disabled = false;
-    trainBtn.textContent = "Train ▶";
+    started = false;
+    pickA = null;
+    pickB = null;
+    pickerA.setActive(null);
+    pickerB.setActive(null);
+    showWaitingState();
+    updateReadyState();
   };
 
   // ---- actions -----------------------------------------------------------
@@ -561,7 +643,7 @@ function buildAndRender(root: HTMLElement, digitPixels: number[][]): void {
 
   root.append(head, switcher, teach, neuralInfo, controls, grid, vizCard, verdict, actions);
 
-  // Seed the bars + viz, then auto-run so the contrast appears immediately.
-  refresh(true);
-  startLoop();
+  // Wait for the user to pick both digits — nothing trains until they do.
+  showWaitingState();
+  updateReadyState();
 }
