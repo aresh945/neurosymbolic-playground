@@ -86,35 +86,6 @@ function bar(label: string, color: string): Bar {
   };
 }
 
-function slider(
-  labelText: () => string,
-  min: number,
-  max: number,
-  step: number,
-  value: number,
-  onInput: (v: number) => void
-): HTMLElement {
-  const caption = el("span", { class: "muted", style: { fontSize: "12px" } }, labelText());
-  const input = el("input", {
-    type: "range",
-    min: String(min),
-    max: String(max),
-    step: String(step),
-    value: String(value),
-    style: { width: "160px" },
-    oninput: (ev: Event) => {
-      onInput(parseFloat((ev.target as HTMLInputElement).value));
-      caption.textContent = labelText();
-    },
-  });
-  return el(
-    "label",
-    { style: { display: "flex", flexDirection: "column", gap: "4px" } },
-    caption,
-    input
-  );
-}
-
 /** A row of 10 clickable digit thumbnails; `setActive` moves the highlight
  * without touching training state — picking a digit is a display concern.
  * `active: null` means nothing picked yet — no thumbnail highlighted. */
@@ -153,10 +124,8 @@ export function renderDigitSumResults(root: HTMLElement): void {
     root,
     el(
       "div",
-      { class: "view-head" },
-      el("h2", {}, "Handwritten Digit Sum — three ways to merge neural + symbolic")
-    ),
-    el("div", { class: "note" }, "Loading digit images…")
+      { class: "view-head" }
+    )
   );
 
   preloadDigitImages()
@@ -171,8 +140,7 @@ export function renderDigitSumResults(root: HTMLElement): void {
         root,
         el(
           "div",
-          { class: "view-head" },
-          el("h2", {}, "Handwritten Digit Sum — three ways to merge neural + symbolic")
+          { class: "view-head" }
         ),
         el(
           "div",
@@ -189,12 +157,16 @@ function buildAndRender(root: HTMLElement, digitPixels: number[][]): void {
   const st = store.get();
   const category = st.pattern ?? "learning-reasoning";
   const info = PATTERNS[category];
-  // The neural block the user configured in the builder actually drives training:
-  // its hidden width, activation, learning rate and noise all flow into the model.
+  // The neural block the user configured in the real TF Playground (double-click
+  // the Neural block on the Architecture step) drives training: hidden width,
+  // activation, learning rate, noise, and train/held-out split all flow in —
+  // synced from the Playground's own hash when that modal closes, see
+  // neuralDetail.ts.
   const nn = st.neural;
   const model = new DigitSumModel(category, digitPixels, {
     learningRate: nn.learningRate,
     noise: nn.noise,
+    trainRatio: nn.trainRatio,
     hidden: Math.max(1, nn.hiddenLayers[0] ?? 4),
     activation: nn.activation,
   });
@@ -382,46 +354,6 @@ function buildAndRender(root: HTMLElement, digitPixels: number[][]): void {
   const trainBtn = el("button", { class: "btn primary" }, "Train ▶");
   const resetBtn = el("button", { class: "btn" }, "Reset");
 
-  const ratioSlider = slider(
-    () => {
-      const s = model.splitSizes;
-      return `Train ratio — ${s.train} train / ${s.test} held-out`;
-    },
-    0.2,
-    0.8,
-    0.04,
-    model.config.trainRatio,
-    (v) => {
-      model.config.trainRatio = v;
-      restart();
-    }
-  );
-
-  const noiseSlider = slider(
-    () => `Noise — ${model.config.noise.toFixed(2)}`,
-    0,
-    0.4,
-    0.02,
-    model.config.noise,
-    (v) => {
-      model.config.noise = v;
-      restart();
-    }
-  );
-
-  const neuralInfo = el(
-    "div",
-    { class: "note", style: { margin: "0 0 14px" } },
-    el("b", {}, "Your neural build is running: "),
-    `${model.H} hidden unit${model.H === 1 ? "" : "s"} · ${nn.activation} · ` +
-      `learning rate ${nn.learningRate} · input noise ${nn.noise.toFixed(2)}. `,
-    el(
-      "span",
-      { class: "muted" },
-      "Change these on the Architecture step (double-click the neural block)."
-    )
-  );
-
   const controls = el(
     "div",
     {
@@ -440,9 +372,7 @@ function buildAndRender(root: HTMLElement, digitPixels: number[][]): void {
       epochLabel
     ),
     trainBtn,
-    resetBtn,
-    ratioSlider,
-    noiseSlider
+    resetBtn
   );
 
   // ---- refresh + loop ----------------------------------------------------
@@ -577,18 +507,6 @@ function buildAndRender(root: HTMLElement, digitPixels: number[][]): void {
     timer = setTimeout(frame, FRAME_DELAY);
   }
 
-  /** Noise/train-ratio sliders reset the model's weights immediately, but
-   * only restart the loop if training had actually begun — before that,
-   * there's nothing running to restart, and no pair chosen to show yet. */
-  function restart(): void {
-    stopLoop();
-    model.reset();
-    if (started) {
-      refresh(true);
-      startLoop();
-    }
-  }
-
   trainBtn.onclick = () => {
     if (!started) {
       if (pickA === null || pickB === null) return; // guarded by disabled state too
@@ -641,7 +559,7 @@ function buildAndRender(root: HTMLElement, digitPixels: number[][]): void {
     )
   );
 
-  root.append(head, switcher, teach, neuralInfo, controls, grid, vizCard, verdict, actions);
+  root.append(head, switcher, teach, controls, grid, vizCard, verdict, actions);
 
   // Wait for the user to pick both digits — nothing trains until they do.
   showWaitingState();

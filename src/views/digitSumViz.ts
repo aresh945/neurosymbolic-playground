@@ -49,6 +49,7 @@ function freshSvg(container: HTMLElement): Svg {
   for (const [id, color] of [
     ["arrow", MUTED],
     ["arrowPos", POS],
+    ["arrowPur", PUR],
   ] as const) {
     defs
       .append("marker")
@@ -87,6 +88,21 @@ function arrow(g: G, x1: number, y1: number, x2: number, y2: number, pos = false
     .attr("stroke", pos ? POS : MUTED)
     .attr("stroke-width", 1.5)
     .attr("marker-end", `url(#${pos ? "arrowPos" : "arrow"})`);
+}
+
+/** Dashed purple arrow, visually distinct from `arrow()` — reserved for the
+ * backward/gradient direction so forward (solid blue) and backward (dashed
+ * purple) read as opposite, unmistakable directions. */
+function backArrow(g: G, x1: number, y1: number, x2: number, y2: number): void {
+  g.append("line")
+    .attr("x1", x1)
+    .attr("y1", y1)
+    .attr("x2", x2)
+    .attr("y2", y2)
+    .attr("stroke", PUR)
+    .attr("stroke-width", 1.6)
+    .attr("stroke-dasharray", "5 4")
+    .attr("marker-end", "url(#arrowPur)");
 }
 
 function box(
@@ -332,8 +348,10 @@ function drawGuided(svg: Svg, model: DigitSumModel, pair: [number, number]): Viz
   };
 }
 
-/** Category 3 — Neural ↔ Symbolic: perception → product grid → P(sum), with
- * a closing pulse selling the tightly-coupled, gradients-flow-back trait. */
+/** Category 3 — Neural ↔ Symbolic: perception → product grid → P(sum) forward
+ * (solid blue), then an explicit backward pass (dashed purple, opposite
+ * direction) retracing the same path plus a pulse on the true-sum diagonal —
+ * the payoff shot for "tightly coupled, gradients flow back every step". */
 function drawTight(svg: Svg, model: DigitSumModel, pair: [number, number]): VizHandle {
   const g = svg.append("g") as unknown as G;
   const K = model.K;
@@ -351,7 +369,8 @@ function drawTight(svg: Svg, model: DigitSumModel, pair: [number, number]): VizH
   const updateA = barGroup(gPerc, 0, 22, 150, 44, POS, K);
   const capB = label(gPerc, 0, 96, "", INK, 11);
   const updateB = barGroup(gPerc, 0, 102, 150, 44, POS, K);
-  arrow(gPerc, 158, 90, gx - 8, 90);
+  // forward pass — solid blue, left to right
+  arrow(gPerc, 158, 90, gx - 8, 90, true);
 
   label(gGrid, gx, 30, "P(a=i) · P(b=j)", INK, 11);
   const cells: SVGRectElement[][] = [];
@@ -378,7 +397,14 @@ function drawTight(svg: Svg, model: DigitSumModel, pair: [number, number]): VizH
   const updateSum = barGroup(gSum, sx, 40, Math.max(120, W - sx - 20), 90, POS, model.SUMS, 2);
   label(gSum, sx, 175, "gradients flow back ← through the grid into perception", MUTED, 10);
 
-  label(gPulse, gx, gy + K * cell + 32, "▲ signal flowing back through the diagonal", PUR, 10);
+  // backward pass — dashed purple, right to left: the return path gradients
+  // actually take, retracing forward's route in reverse. This is the payoff
+  // shot for "tightly coupled, bidirectional" — forward and backward use the
+  // same two arrows' worth of geometry, just opposite direction and style.
+  const backY = gy + K * cell + 30;
+  backArrow(gPulse, sx - 14, backY, gx + K * cell + 8, backY);
+  backArrow(gPulse, gx - 8, backY, 158, backY);
+  label(gPulse, 0, backY + 20, "◀ backward pass — error flows back through the rule into perception weights", PUR, 10);
 
   function paint(m: DigitSumModel, [a, b]: [number, number]): number {
     const p1 = m.readDigit(a);

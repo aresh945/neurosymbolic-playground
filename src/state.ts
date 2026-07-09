@@ -42,6 +42,8 @@ export interface NeuralConfig {
   batchSize: number;
   /** Dataset noise level, 0..0.5 (TF Playground's noise slider / 100). */
   noise: number;
+  /** Fraction of data used for training, 0..1 (TF Playground's % train data / 100). */
+  trainRatio: number;
 }
 
 export interface SymbolicConfig {
@@ -77,6 +79,7 @@ function defaultState(): AppState {
       features: ["x1", "x2"],
       batchSize: 10,
       noise: 0,
+      trainRatio: 0.6,
     },
     symbolic: {
       method: "rules",

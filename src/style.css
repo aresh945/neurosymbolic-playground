@@ -659,3 +659,39 @@ button {
   background: #eef5fb;
 }
 
+/* ---------- drug-discovery: compound picker ---------- */
+.compound-picker {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.compound-token {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 140px;
+  padding: 8px 12px;
+  border: 2px solid var(--line-strong);
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  text-align: left;
+}
+.compound-token .name {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--ink, #183d4e);
+}
+.compound-token .note {
+  font-size: 11px;
+  color: var(--muted);
+}
+.compound-token:hover {
+  border-color: var(--pos);
+}
+.compound-token.active {
+  border-color: var(--pos);
+  background: #eef5fb;
+}
+

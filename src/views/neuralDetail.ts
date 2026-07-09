@@ -32,6 +32,18 @@ const FEATURE_KEY: Record<string, string> = {
 };
 const ALL_INPUT_KEYS = ["x", "y", "xSquared", "ySquared", "xTimesY", "sinX", "sinY"];
 
+/** TF Playground's regularization keys -> ours (inverse of REG_KEY). */
+const REG_KEY_REVERSE: Record<string, NeuralConfig["regularization"]> = {
+  none: "none",
+  L1: "l1",
+  L2: "l2",
+};
+
+/** TF Playground's input toggle keys -> our feature ids (inverse of FEATURE_KEY). */
+const FEATURE_KEY_REVERSE: Record<string, string> = Object.fromEntries(
+  Object.entries(FEATURE_KEY).map(([ours, theirs]) => [theirs, ours])
+);
+
 /**
  * Build the TF Playground URL hash that seeds it from our app state. Their
  * deserializer splits the hash on "&"/"=" without URL-decoding, so values stay
@@ -55,7 +67,7 @@ function playgroundHash(): string {
     noise: String(Math.round((n.noise ?? 0) * 100)),
     batchSize: String(n.batchSize),
     networkShape: (n.hiddenLayers ?? []).join(","),
-    percTrainData: "50",
+    percTrainData: String(Math.round((n.trainRatio ?? 0.6) * 100)),
     discretize: "true",
     showTestData: "false",
     initZero: "false",
@@ -72,6 +84,47 @@ function playgroundHash(): string {
   return Object.entries(params)
     .map(([k, v]) => `${k}=${v}`)
     .join("&");
+}
+
+/**
+ * Parse a live TF Playground hash (read from inside the iframe after the user
+ * has been adjusting it) back into a NeuralConfig patch — the inverse of
+ * playgroundHash(). Deliberately ignores `dataset`: that's tied to the chosen
+ * situation, not something the embedded Playground should be able to override.
+ */
+function parsePlaygroundHash(hash: string): Partial<NeuralConfig> {
+  const params: Record<string, string> = {};
+  for (const pair of hash.split("&")) {
+    const eq = pair.indexOf("=");
+    if (eq < 0) continue;
+    params[pair.slice(0, eq)] = pair.slice(eq + 1);
+  }
+
+  const patch: Partial<NeuralConfig> = {};
+  if (params.activation) patch.activation = params.activation as NeuralConfig["activation"];
+  if (params.regularization) patch.regularization = REG_KEY_REVERSE[params.regularization] ?? "none";
+  if (params.learningRate) patch.learningRate = parseFloat(params.learningRate);
+  if (params.regularizationRate) patch.regularizationRate = parseFloat(params.regularizationRate);
+  if (params.noise) patch.noise = parseFloat(params.noise) / 100;
+  if (params.percTrainData) patch.trainRatio = parseFloat(params.percTrainData) / 100;
+  if (params.batchSize) patch.batchSize = parseInt(params.batchSize, 10);
+  if (params.networkShape !== undefined) {
+    patch.hiddenLayers = params.networkShape
+      .split(",")
+      .map((n) => parseInt(n, 10))
+      .filter((n) => Number.isFinite(n) && n > 0);
+  }
+
+  const features: string[] = [];
+  for (const key of ALL_INPUT_KEYS) {
+    if (params[key] === "true") {
+      const ours = FEATURE_KEY_REVERSE[key];
+      if (ours) features.push(ours);
+    }
+  }
+  patch.features = features;
+
+  return patch;
 }
 
 export function openNeuralModal(app: HTMLElement): void {
@@ -112,8 +165,15 @@ export function openNeuralModal(app: HTMLElement): void {
   );
 
   function close(): void {
+    // Pull whatever the user landed on inside the Playground — same-origin
+    // iframe, so its live location.hash is readable — and apply it as this
+    // demo's actual neural config. Sync happens HERE, on close, not live:
+    // writing to the store re-renders the whole app, which would recreate
+    // this very iframe (via a fresh openNeuralModal call) mid-interaction.
+    const liveHash = frame.contentWindow?.location.hash.slice(1) ?? "";
+    const patch = parsePlaygroundHash(liveHash);
     backdrop.remove();
-    store.set({ view: "builder" });
+    store.set({ view: "builder", neural: { ...store.get().neural, ...patch } });
   }
 
   app.append(backdrop);

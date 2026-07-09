@@ -192,8 +192,11 @@ export class DigitSumModel {
     return { train: this.split.train.length, test: this.split.test.length };
   }
 
-  /** Re-initialize all weights and rebuild the train/held-out split. */
+  /** Re-initialize all weights and rebuild the train/held-out split. Also
+   * re-derives the cached activation from config, so an externally-set
+   * config.activation (e.g. from a UI control) actually takes effect. */
   reset(): void {
+    this.act = activationFns(this.config.activation);
     this.init();
     this._epoch = 0;
     this.lossBaseline = 0;

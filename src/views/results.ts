@@ -10,6 +10,7 @@ import { getSituation } from "../data/situations";
 import { PATTERNS } from "../data/patterns";
 import { getController } from "../runtime";
 import { renderDigitSumResults } from "./digitSumResults";
+import { renderDrugDiscoveryResults } from "./drugDiscoveryResults";
 
 interface Scores {
   performance: number;
@@ -61,10 +62,14 @@ function scoreCard(title: string, subtitle: string, s: Scores): HTMLElement {
 export function renderResults(root: HTMLElement): void {
   const st = store.get();
 
-  // The digit-sum situation has a real, live neurosymbolic demo of its own;
+  // digit-sum and drug-discovery each have a real, live demo of their own;
   // every other situation uses the illustrative trade-off cards below.
   if (st.situationId === "digit-sum") {
     renderDigitSumResults(root);
+    return;
+  }
+  if (st.situationId === "drug-discovery") {
+    renderDrugDiscoveryResults(root);
     return;
   }
 
