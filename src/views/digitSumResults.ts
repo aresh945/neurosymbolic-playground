@@ -29,8 +29,8 @@ const NEURAL_COLOR = "var(--neg)"; // orange
 const NEURO_COLOR = "var(--pos)"; // blue
 const PUR = "#8e44ad"; // perception / symbolic accent
 const MAX_EPOCHS = 400;
-const EPOCHS_PER_FRAME = 1; // one epoch per frame so the learning is easy to follow
-const FRAME_DELAY = 160; // ms between frames — slow enough to actually read the numbers as they move
+const EPOCHS_PER_FRAME = 2; // a couple epochs per frame — still readable, ~3x fewer frames
+const FRAME_DELAY = 90; // ms between frames — full run now ~18s instead of ~64s
 
 let timer: ReturnType<typeof setTimeout> | null = null;
 function stopLoop(): void {
@@ -155,7 +155,7 @@ export function renderDigitSumResults(root: HTMLElement): void {
 function buildAndRender(root: HTMLElement, digitPixels: number[][]): void {
   const sit = getSituation("digit-sum");
   const st = store.get();
-  const category = st.pattern ?? "learning-reasoning";
+  const category = st.pattern ?? "learning-for-reasoning";
   const info = PATTERNS[category];
   // The neural block the user configured in the real TF Playground (double-click
   // the Neural block on the Architecture step) drives training: hidden width,

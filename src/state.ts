@@ -69,7 +69,7 @@ function defaultState(): AppState {
     view: "situations",
     mode: "customize",
     situationId: null,
-    pattern: "learning-reasoning",
+    pattern: "learning-for-reasoning",
     neural: {
       hiddenLayers: [4, 2],
       activation: "tanh",

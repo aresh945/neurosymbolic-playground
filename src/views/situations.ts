@@ -5,14 +5,6 @@ import { el } from "../dom";
 import { SITUATIONS, getSituation } from "../data/situations";
 import { METHODS } from "../data/patterns";
 
-function complexityDots(level: number): HTMLElement {
-  const dots = [1, 2, 3].map((i) =>
-    el("span", { class: "dot" + (i <= level ? " on" : "") })
-  );
-  const labels = ["Simple", "Moderate", "Complex"];
-  return el("span", { class: "complexity" }, ...dots, el("span", {}, labels[level - 1]));
-}
-
 export function renderSituations(root: HTMLElement): void {
   const st = store.get();
 
@@ -47,8 +39,7 @@ export function renderSituations(root: HTMLElement): void {
         "p",
         { class: "tagline", style: { fontSize: "12px" } },
         `Symbolic fit: ${METHODS[s.suggestedMethod].label}`
-      ),
-      complexityDots(s.complexity)
+      )
     );
   });
 

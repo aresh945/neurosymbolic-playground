@@ -74,7 +74,7 @@ export function renderResults(root: HTMLElement): void {
   }
 
   const sit = getSituation(st.situationId);
-  const pattern = PATTERNS[st.pattern ?? "learning-reasoning"];
+  const pattern = PATTERNS[st.pattern ?? "learning-for-reasoning"];
 
   // Train the user's actual network a bit so the neural number is real.
   const controller = getController();

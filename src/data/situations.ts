@@ -64,7 +64,7 @@ export const SITUATIONS: Situation[] = [
       "The net learns perception from weak supervision; the symbolic rule " +
       "guarantees correct, generalizable arithmetic on any pair.",
     suggestedMethod: "rules",
-    suggestedPattern: "learning-reasoning",
+    suggestedPattern: "learning-for-reasoning",
     dataset: "circle",
     complexity: 2,
   },
@@ -94,7 +94,7 @@ export const SITUATIONS: Situation[] = [
       "which conditions were satisfied or violated — the explanation the " +
       "prediction alone can't give.",
     suggestedMethod: "rules",
-    suggestedPattern: "learning-reasoning",
+    suggestedPattern: "learning-for-reasoning",
     dataset: "gauss",
     complexity: 2,
   },
